@@ -30,10 +30,10 @@ Veja o checklist de arquivos esperados em [entregas/README.md](entregas/README.m
 
 **Passos:**
 
-1. Adicione os gráficos de verdade ao Dashboard 1, usando `@st.cache_data`. Três caminhos possíveis:
+1. Adicione os gráficos de verdade ao Dashboard 1, usando `@st.cache_data`. Três caminhos possíveis (no Dashboard 1 o Seaborn é permitido, mas o **Altair é preferível**; no Dashboard 2 o uso do Altair é esperado):
    - **Seaborn** (`st.pyplot`) — reaproveita o que vocês já sabem das Aulas 7/8/11, mas é imagem estática (sem zoom/hover).
    - **Plotly** (`st.plotly_chart`) — interativo (zoom, hover, tooltip).
-   - **Altair** (`st.altair_chart`) — também interativo, e com um recurso extra: **seleção vinculada entre gráficos** (selecionar uma faixa no histograma já destaca os pontos correspondentes no heatmap, sem código extra de sincronização). Recomendado se quiserem algo mais dinâmico com menos esforço.
+   - **Altair** (`st.altair_chart`) — também interativo, e com um recurso extra: **seleção vinculada entre gráficos** (selecionar uma faixa no histograma já destaca os pontos correspondentes no heatmap, sem código extra de sincronização). Recomendado se quiserem algo mais dinâmico com menos esforço. Veja o guia [ALTAIR-CROSSFILTER.md](ALTAIR-CROSSFILTER.md).
 2. Teste o Dashboard 1 em cenários de borda: comportamento com 0 variáveis selecionadas, 1 variável, 2 ou mais, e o recálculo da correlação/distribuição com combinações distintas de widgets. Ajuste o que quebrar.
 3. Escolha a identidade visual do app (cor de fundo, cor de destaque, fonte) em `.streamlit/config.toml`.
 4. Estruture o Dashboard 2, nesta ordem:
@@ -42,7 +42,7 @@ Veja o checklist de arquivos esperados em [entregas/README.md](entregas/README.m
    3. **Defina os widgets que vão controlar o dashboard** antes de codar (ex.: um seletor de período, um filtro de categoria) — mesmo princípio do Dashboard 1: sem isso definido, não dá pra desenhar o rascunho direito.
    4. Só então desenhe o rascunho da página e salve em `entregas/rascunho-dashboard2.jpg` (ou `.png`).
 5. Crie abas (`st.tabs`) separando Dashboard 1 e Dashboard 2 no mesmo app.
-6. Implemente o Dashboard 2 a partir do rascunho: widgets → métricas (`st.metric`) → visuais.
+6. Implemente o Dashboard 2 a partir do rascunho: widgets → métricas (`st.metric`) → visuais com Altair. Para ligar a seleção de um gráfico às métricas e aos outros gráficos, use o guia [ALTAIR-CROSSFILTER.md](ALTAIR-CROSSFILTER.md).
 7. Documente em `entregas/justificativa-metricas.md` por que cada métrica foi escolhida e o que ela comunica ao público.
 8. Atualize `prompts/declaracao-uso-ia.md` com as conversas de IA desta aula.
 9. Commit + push.

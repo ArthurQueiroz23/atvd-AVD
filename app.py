@@ -77,7 +77,7 @@ with col_correlacao:
 
     if len(variaveis) < 2:
         st.warning("Selecione pelo menos 2 variáveis para calcular a correlação.")
-    elif len(df_filtrado) < 2:
+    elif len(df_filtrado) < 30:
         st.warning("Poucos pacientes nos intervalos escolhidos para calcular a correlação.")
     else:
         # Matriz de correlação de Spearman das variáveis selecionadas, em formato longo (uma linha por célula)

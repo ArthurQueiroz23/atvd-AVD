@@ -5,16 +5,20 @@ import streamlit as st
 from src.data_loader import load_data
 
 st.set_page_config(
-    page_title="Avaliação de Correlação entre Variáveis Quantitativas do Heart Disease Dataset",
+    page_title="Campeonato Brasileiro: Correlação e Distribuição",
     layout="wide",
 )
 
-st.title("Avaliação de Correlação entre Variáveis Quantitativas do Heart Disease Dataset")
+st.title("Campeonato Brasileiro: Correlação e Distribuição das Variáveis Quantitativas")
 
 df = load_data()
 
 # Variáveis quantitativas do estudo (mesma lista VARS_QUANT do notebook de EDA)
-VARS_QUANT = ["age", "trestbps", "chol", "thalach", "oldpeak"]
+VARS_QUANT = ["rodata", "mandante_Placar", "visitante_Placar", "arrecadacao"]
+
+# Variável de classe (alvo criado na EDA) e seus valores
+CLASSE = "resultado_mandante"
+VALORES_CLASSE = ["Nao_Venceu", "Vitoria_Mandante"]
 
 # Sidebar: filtros (variáveis + intervalo)
 with st.sidebar:
@@ -28,9 +32,9 @@ with st.sidebar:
     )
 
     separar_por_classe = st.toggle(
-        "Distinguir por Classe",
+        "Distinguir por Resultado do Mandante",
         value=False,
-        help="Colore a distribuição pela classe (doenca_cardiaca: Normal ou Cardíaco).",
+        help="Colore a distribuição pelo resultado (resultado_mandante: Vitoria_Mandante ou Nao_Venceu).",
     )
 
     # Um slider de intervalo para cada variável selecionada
@@ -39,7 +43,9 @@ with st.sidebar:
         if pd.api.types.is_integer_dtype(df[var]):
             minimo, maximo, passo = int(df[var].min()), int(df[var].max()), 1
         else:
-            minimo, maximo, passo = float(df[var].min()), float(df[var].max()), 0.1
+            # arrecadacao vai de 0 a milhões: passo de 1% da faixa, para o slider não ficar travado
+            minimo, maximo = float(df[var].min()), float(df[var].max())
+            passo = max(round((maximo - minimo) / 100, 2), 0.01)
         intervalos[var] = st.slider(
             f"Intervalo de {var}",
             min_value=minimo,
@@ -49,27 +55,35 @@ with st.sidebar:
             key=f"intervalo_{var}",
         )
 
-# Mantém só os pacientes dentro de todos os intervalos escolhidos
+# Mantém só as partidas dentro de todos os intervalos escolhidos.
+# Partidas SEM valor (NaN) na variável são mantidas: arrecadacao só existe em 380 das 9.165
+# partidas e, sem isso, selecionar arrecadacao jogaria fora todo o resto do dataset.
 df_filtrado = df
 for var, (inicio, fim) in intervalos.items():
-    df_filtrado = df_filtrado[df_filtrado[var].between(inicio, fim)]
+    df_filtrado = df_filtrado[df_filtrado[var].between(inicio, fim) | df_filtrado[var].isna()]
 
-st.caption(f"{len(df_filtrado)} de {len(df)} pacientes dentro dos intervalos escolhidos.")
+st.caption(f"{len(df_filtrado)} de {len(df)} partidas dentro dos intervalos escolhidos.")
+
+if "arrecadacao" in variaveis:
+    st.info(
+        f"A arrecadação só está registrada em {df_filtrado['arrecadacao'].notna().sum()} "
+        "dessas partidas. A correlação e o histograma dela usam apenas essas partidas."
+    )
 
 # Dashboard 1: correlação (heatmap) à esquerda, distribuição (histograma) à direita
 col_correlacao, col_distribuicao = st.columns([1, 1.5])
 
-# Cores do histograma, em tons de sangue: vermelho arterial para Cardíaco, rosa claro para Normal
-COR_NORMAL = "#f4a6a6"
-COR_CARDIACO = "#c1121f"
-COR_HISTOGRAMA = COR_CARDIACO
-CORES_CLASSE = alt.Scale(domain=["Normal", "Cardíaco"], range=[COR_NORMAL, COR_CARDIACO])
+# Cores das classes: azul para Nao_Venceu, laranja para Vitoria_Mandante (mesma convenção da EDA)
+COR_NAO_VENCEU = "#4682b4"
+COR_VITORIA = "#ff8c00"
+COR_HISTOGRAMA = "#2e7d32"
+CORES_CLASSE = alt.Scale(domain=VALORES_CLASSE, range=[COR_NAO_VENCEU, COR_VITORIA])
 
 # Legenda das classes em texto, para caber no espaço livre da grade de histogramas
 LEGENDA_CLASSE = (
-    f"**Classe**  \n"
-    f":color[■]{{foreground=\"{COR_NORMAL}\"}} Normal  \n"
-    f":color[■]{{foreground=\"{COR_CARDIACO}\"}} Cardíaco"
+    f"**Resultado do mandante**  \n"
+    f":color[■]{{foreground=\"{COR_NAO_VENCEU}\"}} Nao_Venceu  \n"
+    f":color[■]{{foreground=\"{COR_VITORIA}\"}} Vitoria_Mandante"
 )
 
 with col_correlacao:
@@ -78,7 +92,7 @@ with col_correlacao:
     if len(variaveis) < 2:
         st.warning("Selecione pelo menos 2 variáveis para calcular a correlação.")
     elif len(df_filtrado) < 30:
-        st.warning("Poucos pacientes nos intervalos escolhidos para calcular a correlação.")
+        st.warning("Poucas partidas nos intervalos escolhidos para calcular a correlação.")
     else:
         # Matriz de correlação de Spearman das variáveis selecionadas, em formato longo (uma linha por célula)
         corr = (
@@ -98,9 +112,9 @@ with col_correlacao:
                 "var_x:N",
                 title=None,
                 sort=variaveis[:-1],  # a última variável só aparece nas linhas
-                axis=alt.Axis(labelAngle=0, labelFontSize=14),
+                axis=alt.Axis(labelAngle=-30, labelFontSize=13),
             ),
-            y=alt.Y("var_y:N", title=None, sort=variaveis[1:], axis=alt.Axis(labelFontSize=14)),  # a primeira só nas colunas
+            y=alt.Y("var_y:N", title=None, sort=variaveis[1:], axis=alt.Axis(labelFontSize=13)),  # a primeira só nas colunas
         )
         heatmap = base.mark_rect().encode(
             color=alt.Color(
@@ -130,7 +144,7 @@ with col_distribuicao:
     if not variaveis:
         st.warning("Selecione pelo menos 1 variável para ver a distribuição.")
     elif df_filtrado.empty:
-        st.warning("Nenhum paciente dentro dos intervalos escolhidos.")
+        st.warning("Nenhuma partida dentro dos intervalos escolhidos.")
     else:
         # Com número par de variáveis não sobra espaço na grade: a legenda vai acima dela
         if separar_por_classe and len(variaveis) % 2 == 0:
@@ -140,25 +154,27 @@ with col_distribuicao:
         for inicio in range(0, len(variaveis), 2):
             colunas = st.columns(2)
             for coluna, var in zip(colunas, variaveis[inicio : inicio + 2]):
+                # Remove as partidas sem valor nesta variável (ex.: arrecadacao ausente)
+                dados_var = df_filtrado[[var, CLASSE]].dropna(subset=[var])
                 histograma = (
-                    alt.Chart(df_filtrado[[var, "doenca_cardiaca"]])
+                    alt.Chart(dados_var)
                     .mark_bar()
                     .encode(
                         x=alt.X(f"{var}:Q", bin=alt.Bin(maxbins=20), title=var),
-                        y=alt.Y("count()", title="Pacientes"),
-                        tooltip=[alt.Tooltip("count()", title="Pacientes")],
+                        y=alt.Y("count()", title="Partidas"),
+                        tooltip=[alt.Tooltip("count()", title="Partidas")],
                     )
                     .properties(height=200)
                 )
                 if separar_por_classe:
                     histograma = histograma.encode(
                         color=alt.Color(
-                            "doenca_cardiaca:N",
-                            title="Classe",
+                            f"{CLASSE}:N",
+                            title="Resultado",
                             scale=CORES_CLASSE,
                             legend=None,
                         ),
-                        tooltip=["doenca_cardiaca", alt.Tooltip("count()", title="Pacientes")],
+                        tooltip=[CLASSE, alt.Tooltip("count()", title="Partidas")],
                     )
                 else:
                     histograma = histograma.mark_bar(color=COR_HISTOGRAMA)

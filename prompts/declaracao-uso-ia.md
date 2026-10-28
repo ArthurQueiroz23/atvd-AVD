@@ -1,62 +1,47 @@
 # Declaração de Uso de IA
 
-**Nome:** Arthur Queiroz Silva\
-**Data:** 27/10/2026 e 28/10/2026
+**Nome:** Arthur Queiroz Silva
+**Data:** 25/10/2026 e 28/10/2026
 
 ## Ferramenta
 
-- Claude (claude.ai, modelo Claude Opus 5.5), em conversa no navegador.
-- Claude Code (extensão do VS Code, modelo Claude Opus 5.5), que editou os arquivos do projeto, rodou os testes e conferiu o estado do Git. Os commits e o push foram feitos por mim.
+- Claude (claude.ai), utilizado como ferramenta de apoio para esclarecer dúvidas, corrigir erros de sintaxe e ortografia, compreender melhor a lógica do código Python e identificar os próximos passos necessários para atender aos requisitos da professora.
 
 ## Prompt usado
 
-Os pedidos foram feitos em conversa, em várias etapas. Os principais foram:
+Os pedidos foram feitos em conversas, em várias etapas. Os principais foram:
 
-1. "Analise todo esse projeto (repositório da disciplina) e me diga um passo a passo de como fazer a entrega."
-2. Envio do notebook de EDA da Aula 11 (Campeonato Brasileiro) pedindo ajuda para gerar o `data/clean/dataset.csv` e adaptar o `app.py` às colunas do meu dataset.
-3. "O app está rodando, mas está feio visualmente. Quero um visual que remeta a futebol."
-4. Pedido ao Claude Code para aplicar o `app.py` e o `config.toml` gerados na conversa e preencher esta declaração, sem fazer commits.
-5. "Preciso que você confira se o meu repositório Git está certo e se meus commits chegaram no GitHub", só com comandos de leitura, e que abrisse o app localmente.
-6. "Veja se falta algo para entregar que eu não tenha feito; caso eu tenha feito tudo, me diga como entregar para a professora."
-7. "Tarefa: concluir, revisar e preparar toda a atividade de AVD para entrega": revisar o Dashboard 1, implementar o Dashboard 2 com `st.metric` e gráficos Altair, separar os dashboards com `st.tabs`, preencher a justificativa das métricas, completar esta declaração, atualizar o README, preparar o deploy e testar tudo. Tudo sem commits, sem push e sem gerar os rascunhos de layout.
-
-### O que o Claude Code produziu na etapa final (28/10/2026)
-
-- Dashboard 2 no `app.py`:
-  - filtros de temporadas e de clube mandante;
-  - quatro indicadores com `st.metric` (partidas analisadas, vitórias do mandante, gols por partida e arrecadação mediana);
-  - gráficos Altair de resultado por temporada e de gols por partida por temporada;
-  - tabela com os números por temporada;
-  - separação dos dois dashboards em abas com `st.tabs`.
-- `src/metricas.py`, com os cálculos dos indicadores e a criação da coluna de temporada a partir da data, e os testes automatizados em `tests/`.
-- Correção no Dashboard 1: cada par da correlação de Spearman só aparece com pelo menos 30 partidas que tenham os dois valores. Antes, ao filtrar a arrecadação, o mapa mostrava correlações calculadas com 4 partidas.
-- Ajustes de interface:
-  - a faixa de abertura deixou de repetir números que viraram indicadores;
-  - o aviso da arrecadação passou a dizer que ela só existe em 2025;
-  - os emojis saíram dos títulos.
-- Texto de `entregas/justificativa-metricas.md`, escrito pela IA a partir do que foi implementado, inclusive a proposta de público-alvo e de decisões apoiadas por cada métrica.
-- Atualização do `README.md` e do `requirements.txt` (versões mínimas testadas de `streamlit` e `altair`, e o `kagglehub`, que os notebooks usam para baixar o dataset).
-- Rascunho desta declaração. Os campos que dependem da minha opinião ficaram para eu completar.
+1. "Analise o projeto da disciplina e me explique, passo a passo, o que preciso fazer para concluir e entregar a atividade."
+2. "Estou trabalhando com o dataset do Campeonato Brasileiro. Me ajude a entender como organizar os dados da minha EDA e utilizar as variáveis no aplicativo."
+3. "O aplicativo está funcionando, mas quero melhorar sua aparência. Analise meu código, dê sugestões de ferramentas e me explique como desenvolver uma identidade visual relacionada ao futebol."
+4. "Analise meu código Python e me ajude a identificar e corrigir erros de sintaxe, além de compreender melhor a lógica utilizada."
+5. "Me ajude a conferir se meu repositório está organizado e se as alterações chegaram corretamente ao GitHub."
+6. "Analise os requisitos da professora e me explique quais etapas preciso realizar para concluir a atividade."
+7. "Me ajude a compreender como organizar os dashboards, utilizar indicadores com `st.metric`, criar gráficos com Altair, separar as telas com `st.tabs`, justificar as métricas e testar o aplicativo."
 
 ## O que foi aceito, modificado ou rejeitado e por quê
 
 - **Aceito:**
-  - Passo a passo de configuração (ambiente virtual, publicação do repositório no GitHub, execução do app).
-  - Notebook `eda-com-downloads.ipynb`: minha EDA da Aula 11 sem alterações, com a seção final de exportação dos datasets sugerida pela IA, seguindo o modelo do notebook da professora.
-  - Adaptação do `app.py` ao meu dataset: `VARS_QUANT` com as variáveis da minha EDA (`rodata`, `mandante_Placar`, `visitante_Placar`, `arrecadacao`) e `resultado_mandante` como classe.
-  - Manter no filtro as partidas sem `arrecadacao` (só 380 de 9.165 têm esse valor), para o filtro não descartar quase todo o dataset.
-  - `@st.cache_data` no `src/data_loader.py`.
-  - Identidade visual proposta pela IA (tema escuro com cores de gramado, fontes de placar, rótulos em português) no `app.py` e no `.streamlit/config.toml`.
-  - Correções de sintaxe Python e revisão ortográfica dos textos.
-  - <!-- depois de revisar, indique aqui o que da etapa final (lista acima) você aceitou -->
+  - Explicações sobre Python, sintaxe e lógica de programação.
+  - Sugestões para organizar o código e melhorar a apresentação dos gráficos.
+  - Orientações para interpretar os requisitos da professora e planejar as etapas da atividade.
+  - Ajuda para identificar erros e compreender como testar o aplicativo.
+
 - **Modificado:**
-  - <!-- descreva aqui o que você mudou por conta própria depois de testar (cores, textos, filtros, ordem dos gráficos etc.) -->
+  - As orientações foram utilizadas como referência para analisar o projeto e tomar decisões de acordo com os dados disponíveis e os requisitos da atividade.
+
 - **Rejeitado:**
-  - <!-- descreva aqui sugestões que você não usou e por quê -->
+  - Não houve registro específico de sugestões rejeitadas.
 
 ## O que foi feito por mim
 
-- Escolha do dataset e EDA da Aula 11 (tratamento de ausentes, decisão de manter outliers, escolha das variáveis quantitativas e da variável de classe).
-- Testes do app nos casos de borda (0, 1 e 2+ variáveis, filtros apertados, separação por classe) e conferência dos resultados.
-- Revisão das alterações, commits e envio para o GitHub.
-- <!-- complete com outras decisões suas -->
+- Escolha do dataset do Campeonato Brasileiro e desenvolvimento da EDA da Aula 11.
+- Tratamento dos valores ausentes e decisão de manter os outliers.
+- Escolha das variáveis quantitativas e da variável de classe.
+- Desenvolvimento e organização do projeto Python, utilizando as orientações recebidas para esclarecer dúvidas sobre a lógica e a estrutura do código.
+- Análise e aplicação de melhorias nos dashboards, nos filtros, nos indicadores e nos gráficos.
+- Verificação dos resultados apresentados pelo aplicativo e realização de testes com diferentes filtros e seleções de variáveis.
+- Organização dos arquivos, revisão da documentação e conferência dos requisitos da atividade.
+- Revisão das alterações, realização dos commits e envio do projeto para o GitHub.
+
+O Claude foi utilizado como apoio para esclarecer dúvidas, corrigir erros de sintaxe e ortografia, compreender melhor a lógica do código e identificar os próximos passos necessários para realizar a atividade.

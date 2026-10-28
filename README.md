@@ -11,7 +11,7 @@ Repositório-modelo das Aulas 21, 22 e 23: construção de dois dashboards em St
 
 **Aluno:** Arthur Queiroz Silva
 
-**Link do app (Aula 23):** _(ainda não publicado: preencher com a URL `https://....streamlit.app` depois do deploy no Streamlit Community Cloud)_
+**Link do app (Aula 23):** <https://raio-x-brasileirao.streamlit.app/>
 
 **Dataset:** [Campeonato Brasileiro de Futebol](https://www.kaggle.com/datasets/adaoduque/campeonato-brasileiro-de-futebol) (Kaggle, arquivo `campeonato-brasileiro-full.csv`), com as 9.165 partidas da Série A de 2003 a 2025.
 - `notebooks/eda.ipynb` é a minha EDA original da Aula 11.

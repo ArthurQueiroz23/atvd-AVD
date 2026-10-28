@@ -7,6 +7,44 @@ Repositório-modelo das Aulas 21, 22 e 23: construção de dois dashboards em St
 - Dashboard 1 = correlação + distribuição das variáveis quantitativas
 - Dashboard 2 = KPIs
 
+## Meu projeto: Raio-X do Brasileirão
+
+**Aluno:** Arthur Queiroz Silva
+
+**Link do app (Aula 23):** _(ainda não publicado: preencher com a URL `https://....streamlit.app` depois do deploy no Streamlit Community Cloud)_
+
+**Dataset:** [Campeonato Brasileiro de Futebol](https://www.kaggle.com/datasets/adaoduque/campeonato-brasileiro-de-futebol) (Kaggle, arquivo `campeonato-brasileiro-full.csv`), com as 9.165 partidas da Série A de 2003 a 2025.
+- `notebooks/eda.ipynb` é a minha EDA original da Aula 11.
+- `notebooks/eda-com-downloads.ipynb` é a mesma EDA com a exportação no final, que gera o `data/clean/dataset.csv` lido pelo app.
+
+O app tem duas abas:
+
+| Aba | O que mostra | Controles |
+| --- | --- | --- |
+| **Dashboard 1 · Correlação e distribuição** | Mapa de calor da correlação de Spearman entre rodada, gols do mandante, gols do visitante e arrecadação, e um histograma de cada variável, com a opção de colorir pelo resultado do mandante (`resultado_mandante`, a variável de classe da EDA). | Na barra lateral: escolha das variáveis, intervalo de cada uma e a opção de separar por resultado. |
+| **Dashboard 2 · Indicadores do fator casa** | Quatro indicadores com `st.metric`: partidas analisadas, vitórias do mandante, gols por partida e arrecadação mediana, cada um comparado com o dataset completo. Também mostra o resultado das partidas e os gols por partida em cada temporada, além de uma tabela com esses números. | Na própria aba: intervalo de temporadas e clube mandante. Os intervalos da barra lateral também valem aqui. |
+
+A justificativa de cada métrica do Dashboard 2 está em [entregas/justificativa-metricas.md](entregas/justificativa-metricas.md).
+
+Observações sobre os dados:
+
+- A **arrecadação** só foi registrada na temporada 2025 (380 das 9.165 partidas). Fora dela, o histograma e o indicador de arrecadação ficam sem dados, e o app avisa.
+- O dataset não tem coluna de **temporada**, então ela é calculada a partir da data. A temporada 2020 terminou em fevereiro de 2021 (pandemia), por isso jogos de janeiro e fevereiro contam para o ano anterior.
+
+Organização do código:
+
+- `app.py`: a interface, com os dois dashboards em abas.
+- `src/data_loader.py`: leitura do dataset tratado, com `@st.cache_data`.
+- `src/metricas.py`: cálculos dos indicadores do Dashboard 2.
+- `tests/`: testes automatizados dos cálculos e do app.
+
+Para rodar o app e os testes (com o ambiente virtual ativo, na raiz do projeto; o Setup está logo abaixo):
+
+```bash
+streamlit run app.py
+python -m unittest discover -s tests -v
+```
+
 ## Setup
 
 Requer **Python 3.11 a 3.15**. Confira a sua versão antes de começar:
@@ -49,7 +87,7 @@ streamlit run app.py
 - **Python fora de 3.11–3.15:** instale uma versão compatível em [python.org](https://www.python.org/downloads/) e crie o venv com ela, como no exemplo acima.
 - **Apareceu `ModuleNotFoundError` ou `streamlit: command not found`:** o venv provavelmente não está ativo. Ative de novo e confira o `(.venv)` no prompt.
 - **Erro de certificado no `pip install` (macOS, Python do python.org):** rode `Install Certificates.command`, na pasta Python 3.X em Aplicativos.
-- **`DatasetNotFoundError` ao baixar o dataset no notebook (macOS, Python do python.org):** é o mesmo problema de certificado SSL (o `pandas` não consegue ler o CSV da UCI). Rode `Install Certificates.command` e reinicie o kernel. O notebook `eda-com-downloads.ipynb` já define `SSL_CERT_FILE` com o `certifi` como contorno.
+- **Erro de SSL ou `DatasetNotFoundError` ao baixar o dataset no notebook (macOS, Python do python.org):** é o mesmo problema de certificado SSL. Rode `Install Certificates.command` e reinicie o kernel. Neste projeto o dataset vem do Kaggle, pelo `kagglehub` (já incluído no `requirements.txt`).
 
 ## Estrutura de dados: `data/raw` vs `data/clean`
 
@@ -74,7 +112,7 @@ streamlit run app.py
 
 O passo a passo detalhado de cada aula (Aulas 21, 22 e 23), com pré-requisitos e objetivos, está em [ROTEIRO.md](ROTEIRO.md). Comece por ele depois do Setup.
 
-**Link do app (Aula 23):** _(preencher após o deploy)_
+O link do app publicado fica no início deste README, na seção "Meu projeto".
 
 ## IA neste projeto
 

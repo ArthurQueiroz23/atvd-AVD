@@ -1,11 +1,16 @@
+
 # Identidade visual do app: "noite de jogo" — gramado escuro, verde de estádio e linhas de cal.
 # O tema escuro é fixo para o visual ficar igual em qualquer computador.
 
 [theme]
 base = "dark"
-primaryColor = "#22b455"              # verde de estádio: widgets, sliders, seleções
-backgroundColor = "#0b1a12"           # gramado à noite (fundo da página)
-secondaryBackgroundColor = "#12261b"  # sidebar e caixas de widgets
-textColor = "#eef5ee"                 # branco "linha de cal"
-borderColor = "#24402f"
 font = "sans serif"
+
+# Cores principais
+primaryColor = "#22b455"
+textColor = "#eef5ee"
+
+# Fundos e bordas
+backgroundColor = "#0b1a12"
+secondaryBackgroundColor = "#12261b"
+borderColor = "#24402f"

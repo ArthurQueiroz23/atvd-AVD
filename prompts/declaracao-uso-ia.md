@@ -1,6 +1,6 @@
 # Declaração de Uso de IA
 
-**Nome:** Arthur Queiroz Silva
+**Nome:** Arthur Queiroz Silva  
 **Data:** 25/10/2026 e 28/10/2026
 
 ## Ferramenta
@@ -18,6 +18,7 @@ Os pedidos foram feitos em conversas, em várias etapas. Os principais foram:
 5. "Me ajude a conferir se meu repositório está organizado e se as alterações chegaram corretamente ao GitHub."
 6. "Analise os requisitos da professora e me explique quais etapas preciso realizar para concluir a atividade."
 7. "Me ajude a compreender como organizar os dashboards, utilizar indicadores com `st.metric`, criar gráficos com Altair, separar as telas com `st.tabs`, justificar as métricas e testar o aplicativo."
+8. "Me explique, de forma didática e passo a passo, com uma instrução por vez, como realizar o deploy do meu aplicativo no Streamlit Community Cloud, seguindo as orientações da professora."
 
 ## O que foi aceito, modificado ou rejeitado e por quê
 
@@ -43,5 +44,6 @@ Os pedidos foram feitos em conversas, em várias etapas. Os principais foram:
 - Verificação dos resultados apresentados pelo aplicativo e realização de testes com diferentes filtros e seleções de variáveis.
 - Organização dos arquivos, revisão da documentação e conferência dos requisitos da atividade.
 - Revisão das alterações, realização dos commits e envio do projeto para o GitHub.
+- Realização do deploy do aplicativo no Streamlit Community Cloud, utilizando o Claude como apoio para receber orientações didáticas, passo a passo e uma instrução por vez, conforme os requisitos e as orientações da professora. A execução das etapas de publicação foi feita por mim, com o auxílio das explicações recebidas.
 
-O Claude foi utilizado como apoio para esclarecer dúvidas, corrigir erros de sintaxe e ortografia, compreender melhor a lógica do código e identificar os próximos passos necessários para realizar a atividade.
+O Claude foi utilizado como apoio para esclarecer dúvidas, corrigir erros de sintaxe e ortografia, compreender melhor a lógica do código e identificar os próximos passos necessários para realizar a atividade. Também foi utilizado para orientar o processo de publicação do aplicativo, enquanto a execução do deploy ficou sob minha responsabilidade.

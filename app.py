@@ -4,14 +4,21 @@ import streamlit as st
 
 from src.data_loader import load_data
 from src.metricas import (
+    EM_CASA,
+    EM_CASA_E_FORA,
+    FORA,
+    LOCAIS,
     RESULTADOS,
     ROTULOS_SALDO,
     adicionar_temporada,
     calcular_kpis,
     gols_por_temporada,
+    partidas_analisadas,
     percentuais_resultados,
+    referencia_dos_clubes,
     resultados_por_saldo,
     resultados_por_temporada,
+    rotulos_dos_resultados,
     tabela_por_temporada,
 )
 
@@ -231,8 +238,8 @@ CLASSE = "resultado_mandante"
 VALORES_CLASSE = ["Nao_Venceu", "Vitoria_Mandante"]
 CORES_CLASSE = alt.Scale(domain=VALORES_CLASSE, range=[CINZA_GRAMA, VERDE_LIMAO])
 
-# Resultado da partida em três categorias, usado no Dashboard 2
-CORES_RESULTADO = alt.Scale(domain=RESULTADOS, range=[VERDE_LIMAO, CINZA_GRAMA, AZUL_VISITANTE])
+# Cores de vitória, empate e derrota do time analisado no Dashboard 2 (os rótulos mudam com o clube)
+CORES_RESULTADO = [VERDE_LIMAO, CINZA_GRAMA, AZUL_VISITANTE]
 
 # Abaixo disso, correlações e percentuais ficam instáveis demais para serem lidos com confiança
 MIN_PARTIDAS = 30
@@ -279,10 +286,21 @@ with st.sidebar:
         help="Intervalo de temporadas usado nos indicadores e gráficos do Dashboard 2.",
     )
     clube = st.selectbox(
-        "Clube mandante",
-        [TODOS_CLUBES] + sorted(df["mandante"].unique()),
+        "Clube",
+        [TODOS_CLUBES] + sorted(set(df["mandante"]) | set(df["visitante"])),
         key="kpi_clube",
-        help="Escolha um clube para ver só as partidas em que ele jogou em casa.",
+        help="Todos os clubes: fator casa geral, com cada partida vista pelo mandante. "
+        "Um clube: o desempenho dele, com vitória, empate e derrota contados do ponto de vista do clube.",
+    )
+    local = st.segmented_control(
+        "Jogos do clube",
+        LOCAIS,
+        default=EM_CASA_E_FORA,
+        required=True,
+        key="kpi_local",
+        disabled=clube == TODOS_CLUBES,
+        help="Com um clube escolhido: considerar só os jogos em casa, só os jogos fora ou os dois. "
+        "Fica desativado em 'Todos os clubes', que é a análise do fator casa geral.",
     )
 
     if variaveis:
@@ -539,45 +557,74 @@ with aba_dashboard1:
 
 with aba_dashboard2:
     st.header("Indicadores do fator casa")
-    st.caption(
-        "Quanto o mando de campo pesa no resultado? Os indicadores comparam o recorte escolhido "
-        "com todas as partidas do dataset."
-    )
+
+    # Duas análises diferentes, que nunca se misturam no mesmo cálculo:
+    # - fator casa geral (todos os clubes): cada partida é vista pelo mandante;
+    # - clube escolhido: cada partida do clube é vista por ele, em casa ou fora.
+    clube_escolhido = None if clube == TODOS_CLUBES else clube
+    jogos = {EM_CASA: "jogos em casa", FORA: "jogos fora", EM_CASA_E_FORA: "jogos em casa e fora"}[local]
     periodo = f"temporada {primeira}" if primeira == ultima else f"temporadas {primeira}–{ultima}"
+    if clube_escolhido is None:
+        st.caption(
+            "Quanto o mando de campo pesa no resultado? **Fator casa geral:** cada partida é vista pelo "
+            "mandante, e os indicadores comparam o recorte com todas as partidas do dataset."
+        )
+        descricao_recorte = "todos os clubes"
+    else:
+        st.caption(
+            f"**Desempenho do clube escolhido ({clube}):** vitória, empate e derrota são contados do "
+            "ponto de vista do clube, jogando em casa ou fora, e os indicadores comparam com a média "
+            "dos clubes nas mesmas condições."
+        )
+        descricao_recorte = f"{clube} · {jogos}"
     st.caption(
-        f"Recorte: **{periodo} · {clube}**. Para mudar, use o grupo Dashboard 2 da barra lateral; "
+        f"Recorte: **{periodo} · {descricao_recorte}**. Para mudar, use o grupo Dashboard 2 da barra lateral; "
         "os intervalos de lá também valem aqui."
     )
 
-    recorte = df_filtrado[df_filtrado["temporada"].between(primeira, ultima)]
-    if clube != TODOS_CLUBES:
-        recorte = recorte[recorte["mandante"] == clube]
+    partidas_do_periodo = df_filtrado[df_filtrado["temporada"].between(primeira, ultima)]
+    recorte = partidas_analisadas(partidas_do_periodo, clube_escolhido, local)
+    if clube_escolhido is None:
+        referencia = partidas_analisadas(df)
+        comparacao = "vs. todas as partidas"
+    else:
+        referencia = referencia_dos_clubes(df, local)
+        comparacao = f"vs. média dos clubes ({local.lower()})"
+    rotulos = rotulos_dos_resultados(clube_escolhido)
+    nome_do_resultado = dict(zip(RESULTADOS, rotulos))
+    escala_resultados = alt.Scale(domain=rotulos, range=CORES_RESULTADO)
 
     if recorte.empty:
         st.warning(
-            "Nenhuma partida no recorte. O clube escolhido pode não ter jogado em casa na Série A "
-            "nessas temporadas, ou os intervalos da barra lateral excluíram as partidas."
+            "Nenhuma partida no recorte. O clube escolhido pode não ter jogado a Série A nessas "
+            "temporadas (ou nesse tipo de jogo), ou os intervalos da barra lateral excluíram as partidas."
         )
     else:
         kpis = calcular_kpis(recorte)
-        geral = calcular_kpis(df)
+        geral = calcular_kpis(referencia)
 
         col_partidas, col_vitorias, col_gols, col_arrecadacao = st.columns(4)
         col_partidas.metric(
             "Partidas analisadas",
             numero_br(kpis["partidas"]),
-            help="Base de cálculo dos outros indicadores. Com poucas partidas, os percentuais oscilam muito.",
+            help="Partidas do recorte (com um clube escolhido, só as dele, nos jogos selecionados). "
+            "É a base de cálculo dos outros indicadores; com poucas partidas, os percentuais oscilam muito.",
             border=True,
             height="stretch",
         )
         col_vitorias.metric(
-            "Vitórias do mandante",
-            f"{numero_br(kpis['pct_vitorias_mandante'] * 100, 1)}%",
-            delta=variacao((kpis["pct_vitorias_mandante"] - geral["pct_vitorias_mandante"]) * 100, 1, " p.p."),
+            "Vitórias do mandante" if clube_escolhido is None else f"{clube}: vitórias",
+            f"{numero_br(kpis['pct_vitorias'] * 100, 1)}%",
+            delta=variacao((kpis["pct_vitorias"] - geral["pct_vitorias"]) * 100, 1, " p.p."),
             delta_color="off",
-            delta_description="vs. todas as partidas",
-            help="Percentual das partidas em que o mandante venceu (variável resultado_mandante da EDA). "
-            "A comparação é em pontos percentuais.",
+            delta_description=comparacao,
+            help=(
+                "Percentual das partidas em que o mandante venceu (é a variável resultado_mandante da EDA)."
+                if clube_escolhido is None
+                else f"Percentual das partidas do recorte que {clube} venceu ({jogos}), contadas do ponto de "
+                "vista do clube. A média dos clubes usa as mesmas condições."
+            )
+            + " A comparação é em pontos percentuais.",
             border=True,
             height="stretch",
         )
@@ -609,6 +656,7 @@ with aba_dashboard2:
                 delta_description=f"vs. todas as partidas de {TEMPORADAS_ARRECADACAO}",
                 help=f"Mediana da arrecadação por partida, calculada com as {kpis['partidas_com_arrecadacao']} "
                 f"partidas do recorte que têm esse registro (só existe em {TEMPORADAS_ARRECADACAO}). "
+                "É a renda do jogo, do mandante: nos jogos fora de um clube, é a renda do adversário. "
                 "A mediana é usada porque poucos jogos com arrecadação muito alta puxam a média para cima.",
                 border=True,
                 height="stretch",
@@ -629,40 +677,53 @@ with aba_dashboard2:
         )
 
         with st.container(border=True):
-            st.subheader("Resultado das partidas por temporada")
+            if clube_escolhido is None:
+                st.subheader("Resultados das partidas por temporada · mandante, empate e visitante")
+                unidade = (
+                    "Unidade: partida, com o resultado visto pelo mandante "
+                    "(visitante venceu = derrota do mandante)."
+                )
+            else:
+                st.subheader(f"{clube}: resultados por temporada · {jogos}")
+                unidade = (
+                    f"Unidade: partida do clube escolhido ({jogos}), com o resultado visto pelo clube: "
+                    "uma vitória fora de casa conta como vitória dele."
+                )
             vitorias, empates, derrotas = percentuais_resultados(recorte)
             st.caption(
-                f"No recorte: {numero_br(vitorias * 100, 1)}% de vitórias do mandante, "
-                f"{numero_br(empates * 100, 1)}% de empates e {numero_br(derrotas * 100, 1)}% de derrotas "
-                "do mandante (vitórias do visitante). Clique numa cor da legenda para destacar esse "
-                "resultado; clique nela de novo para voltar a ver todos."
+                f"{unidade} Cada barra é uma temporada e soma 100% das partidas dela no recorte. "
+                f"No recorte inteiro: {rotulos[0]} {numero_br(vitorias * 100, 1)}% · "
+                f"Empate {numero_br(empates * 100, 1)}% · {rotulos[2]} {numero_br(derrotas * 100, 1)}%. "
+                "Clique numa cor da legenda para destacar esse resultado; clique nela de novo para ver todos."
             )
 
             # Cada clique na legenda liga ou desliga o destaque (por padrão do Vega-Lite,
             # só o Shift faria isso e o destaque ficaria preso até um duplo clique)
-            destaque = alt.selection_point(fields=["resultado"], bind="legend", toggle="true")
+            destaque = alt.selection_point(fields=["rotulo"], bind="legend", toggle="true")
+            dados_resultados = resultados_por_temporada(recorte)
+            dados_resultados["rotulo"] = dados_resultados["resultado"].map(nome_do_resultado)
             grafico_resultados = (
-                alt.Chart(resultados_por_temporada(recorte))
+                alt.Chart(dados_resultados)
                 .mark_bar(stroke="#0b1a12", strokeWidth=2)
                 .encode(
                     x=eixo_temporada,
                     y=alt.Y(
                         "partidas:Q",
                         stack="normalize",
-                        title="Partidas da temporada",
+                        title="% das partidas da temporada",
                         axis=alt.Axis(format="%"),
                     ),
                     color=alt.Color(
-                        "resultado:N",
+                        "rotulo:N",
                         title=None,
-                        scale=CORES_RESULTADO,
+                        scale=escala_resultados,
                         legend=alt.Legend(orient="top"),
                     ),
                     order=alt.Order("ordem:Q"),
                     opacity=alt.condition(destaque, alt.value(1), alt.value(0.3)),
                     tooltip=[
                         alt.Tooltip("temporada:O", title="Temporada"),
-                        alt.Tooltip("resultado:N", title="Resultado"),
+                        alt.Tooltip("rotulo:N", title="Resultado"),
                         alt.Tooltip("partidas:Q", title="Partidas"),
                         alt.Tooltip("total:Q", title="Partidas na temporada"),
                         alt.Tooltip("percentual:Q", title="Percentual", format=".1%"),
@@ -675,7 +736,8 @@ with aba_dashboard2:
                 estilo(grafico_resultados),
                 width="stretch",
                 theme=None,
-                alt="Barras empilhadas com o percentual de vitórias do mandante, empates e derrotas do mandante em cada temporada",
+                alt=f"Barras empilhadas com o percentual de cada resultado em cada temporada: "
+                f"{rotulos[0]}, Empate e {rotulos[2]}",
             )
 
         col_gols_temporada, col_saldo = st.columns(2, gap="large")
@@ -720,38 +782,49 @@ with aba_dashboard2:
 
         with col_saldo:
             with st.container(border=True):
-                st.subheader("Por quanto o mandante vence ou perde")
-                st.caption(
-                    "Saldo de gols do mandante em cada partida do recorte (gols marcados menos sofridos). "
-                    "Os traços dourados mostram o mesmo percentual em todas as partidas do dataset."
-                )
+                if clube_escolhido is None:
+                    st.subheader("Por quanto o mandante vence ou perde")
+                    st.caption(
+                        "Saldo de gols do mandante em cada partida do recorte (gols marcados menos sofridos). "
+                        "Os traços dourados mostram o mesmo percentual em todas as partidas do dataset."
+                    )
+                    time_do_saldo, nome_da_referencia = "mandante", "% em todas as partidas"
+                else:
+                    st.subheader(f"{clube}: por quanto vence ou perde")
+                    st.caption(
+                        f"Saldo de gols do clube em cada partida do recorte ({jogos}; gols marcados menos "
+                        "sofridos). Os traços dourados mostram a média dos clubes nas mesmas condições."
+                    )
+                    time_do_saldo, nome_da_referencia = "clube", "% na média dos clubes"
 
-                base_saldo = alt.Chart(resultados_por_saldo(recorte, df)).encode(
+                dados_saldo = resultados_por_saldo(recorte, referencia)
+                dados_saldo["rotulo"] = dados_saldo["resultado"].map(nome_do_resultado)
+                base_saldo = alt.Chart(dados_saldo).encode(
                     x=alt.X(
                         "faixa:N",
-                        title="Saldo de gols do mandante na partida",
+                        title=f"Saldo de gols do {time_do_saldo} na partida",
                         sort=list(ROTULOS_SALDO.values()),
                         axis=alt.Axis(labelAngle=0),
                     ),
                     tooltip=[
-                        alt.Tooltip("faixa:N", title="Saldo do mandante"),
-                        alt.Tooltip("resultado:N", title="Resultado"),
+                        alt.Tooltip("faixa:N", title=f"Saldo do {time_do_saldo}"),
+                        alt.Tooltip("rotulo:N", title="Resultado"),
                         alt.Tooltip("partidas:Q", title="Partidas no recorte"),
                         alt.Tooltip("percentual:Q", title="% do recorte", format=".1%"),
-                        alt.Tooltip("percentual_referencia:Q", title="% em todas as partidas", format=".1%"),
+                        alt.Tooltip("percentual_referencia:Q", title=nome_da_referencia, format=".1%"),
                     ],
                 )
                 barras_saldo = base_saldo.mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-                    y=alt.Y("percentual:Q", title="Partidas do recorte", axis=alt.Axis(format="%")),
+                    y=alt.Y("percentual:Q", title="% das partidas do recorte", axis=alt.Axis(format="%")),
                     color=alt.Color(
-                        "resultado:N",
+                        "rotulo:N",
                         title=None,
-                        scale=CORES_RESULTADO,
+                        scale=escala_resultados,
                         legend=alt.Legend(orient="top"),
                     ),
                 )
                 # Traço dourado com contorno escuro, para aparecer tanto sobre as barras claras quanto sobre o fundo
-                y_referencia = alt.Y("percentual_referencia:Q", title="Partidas do recorte")
+                y_referencia = alt.Y("percentual_referencia:Q", title="% das partidas do recorte")
                 historico = base_saldo.mark_tick(color="#0b1a12", thickness=6).encode(
                     y=y_referencia
                 ) + base_saldo.mark_tick(color=DOURADO, thickness=2).encode(y=y_referencia)
@@ -759,8 +832,8 @@ with aba_dashboard2:
                     estilo((barras_saldo + historico).properties(height=320)),
                     width="stretch",
                     theme=None,
-                    alt="Barras com o percentual de partidas por saldo de gols do mandante, coloridas por vitória, "
-                    "empate ou derrota do mandante, com o percentual de todas as partidas como referência",
+                    alt=f"Barras com o percentual de partidas por saldo de gols do {time_do_saldo}, coloridas "
+                    "pelo resultado, com a referência em traços dourados",
                 )
 
         with st.expander("Ver os números por temporada"):
@@ -771,7 +844,10 @@ with aba_dashboard2:
                     "temporada": st.column_config.NumberColumn("Temporada", format="%d"),
                     "partidas": st.column_config.NumberColumn("Partidas"),
                     "gols_por_partida": st.column_config.NumberColumn("Gols por partida", format="%.2f"),
-                    **{r: st.column_config.NumberColumn(f"{r} (%)", format="%.1f") for r in RESULTADOS},
+                    **{
+                        r: st.column_config.NumberColumn(f"{nome_do_resultado[r]} (%)", format="%.1f")
+                        for r in RESULTADOS
+                    },
                 },
                 alt="Tabela por temporada com partidas, gols por partida e percentual de cada resultado",
             )

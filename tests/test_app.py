@@ -86,8 +86,31 @@ class TestDashboard2(unittest.TestCase):
         at = abrir_app()
         self.assertIn("kpi_temporadas", [s.key for s in at.sidebar.slider])
         self.assertIn("kpi_clube", [s.key for s in at.sidebar.selectbox])
+        self.assertIn("kpi_local", [s.key for s in at.sidebar.segmented_control])
         self.assertNotIn("kpi_temporadas", [s.key for s in at.main.slider])
         self.assertNotIn("kpi_clube", [s.key for s in at.main.selectbox])
+
+    def test_jogos_do_clube_so_vale_com_um_clube_escolhido(self):
+        at = abrir_app()
+        self.assertTrue(at.get_by_key("kpi_local").disabled)  # "Todos os clubes": fator casa geral
+        self.assertIn("Resultados das partidas por temporada · mandante, empate e visitante",
+                      [s.value for s in at.subheader])
+        at.selectbox(key="kpi_clube").select("Sport").run()
+        self.assertFalse(at.get_by_key("kpi_local").disabled)
+
+    def test_sport_em_casa_fora_e_nos_dois(self):
+        # Em 2016 o Sport jogou 19 partidas em casa e 19 fora
+        at = abrir_app()
+        at.slider(key="kpi_temporadas").set_range(2016, 2016).run()
+        at.selectbox(key="kpi_clube").select("Sport").run()
+        esperado = {"Em casa e fora": "38", "Em casa": "19", "Fora": "19"}
+        for local, partidas in esperado.items():
+            at.get_by_key("kpi_local").set_value(local).run()
+            self.assertFalse(at.exception, local)
+            self.assertEqual(at.metric[0].value, partidas, local)
+            self.assertEqual(at.metric[1].label, "Sport: vitórias")
+            titulo = f"Sport: resultados por temporada · jogos {local.lower()}"
+            self.assertIn(titulo, [s.value for s in at.subheader], local)
 
     def test_aba_tem_tres_graficos(self):
         at = abrir_app()
@@ -111,23 +134,29 @@ class TestDashboard2(unittest.TestCase):
             self.assertFalse(at.exception, clube)
             recorte = df[df["temporada"].between(2010, 2015)]
             if clube != "Todos os clubes":
-                recorte = recorte[recorte["mandante"] == clube]
+                # Com um clube escolhido, o padrão é contar os jogos dele em casa e fora
+                recorte = recorte[(recorte["mandante"] == clube) | (recorte["visitante"] == clube)]
             self.assertEqual(at.metric[0].value.replace(".", ""), str(len(recorte)), clube)
             # A tabela por temporada soma as mesmas partidas do indicador
             self.assertEqual(at.dataframe[0].value["partidas"].sum(), len(recorte), clube)
 
     def test_clube_e_temporada(self):
         df = adicionar_temporada(pd.read_csv("data/clean/dataset.csv"))
-        esperado = df[(df["temporada"] == 2025) & (df["mandante"] == "Flamengo")]
+        temporada = df[df["temporada"] == 2025]
+        em_casa = temporada[temporada["mandante"] == "Flamengo"]
+        fora = temporada[temporada["visitante"] == "Flamengo"]
+        # Vitórias contadas do ponto de vista do Flamengo, calculadas aqui direto pelo placar
+        vitorias = (em_casa["mandante_Placar"] > em_casa["visitante_Placar"]).sum() + (
+            fora["visitante_Placar"] > fora["mandante_Placar"]
+        ).sum()
 
         at = abrir_app()
         at.slider(key="kpi_temporadas").set_range(2025, 2025).run()
         at.selectbox(key="kpi_clube").select("Flamengo").run()
 
         self.assertFalse(at.exception)
-        self.assertEqual(at.metric[0].value, str(len(esperado)))
-        vitorias = (esperado["resultado_mandante"] == "Vitoria_Mandante").mean()
-        self.assertEqual(at.metric[1].value, percentual_br(vitorias))
+        self.assertEqual(at.metric[0].value, str(len(em_casa) + len(fora)))
+        self.assertEqual(at.metric[1].value, percentual_br(vitorias / (len(em_casa) + len(fora))))
 
     def test_arrecadacao_fora_de_2025_fica_sem_valor(self):
         at = abrir_app()

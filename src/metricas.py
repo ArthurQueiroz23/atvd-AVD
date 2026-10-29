@@ -2,16 +2,25 @@
 
 As funções recebem e devolvem DataFrames do pandas, sem nada de Streamlit,
 para poderem ser testadas separadamente (ver tests/test_metricas.py).
+
+Todo resultado é contado do ponto de vista de um "time analisado":
+- fator casa geral (nenhum clube escolhido): o time analisado é sempre o mandante;
+- clube escolhido: o time analisado é o próprio clube, jogando em casa ou fora.
+A função `partidas_analisadas` monta essa visão (colunas gols_pro e gols_contra),
+e todo o resto do módulo trabalha sobre ela.
 """
 
 import numpy as np
 import pandas as pd
 
-# Resultado da partida do ponto de vista do mandante, na ordem usada nos gráficos.
-# "Derrota do mandante" é o mesmo que vitória do visitante.
-RESULTADOS = ["Vitória do mandante", "Empate", "Derrota do mandante"]
+# Resultado do ponto de vista do time analisado, na ordem usada nos gráficos
+RESULTADOS = ["Vitória", "Empate", "Derrota"]
 
-# Faixas de saldo de gols do mandante no gráfico de margens: placares mais elásticos ficam nas pontas
+# Em que jogos de um clube escolhido a análise considera
+EM_CASA, FORA, EM_CASA_E_FORA = "Em casa", "Fora", "Em casa e fora"
+LOCAIS = [EM_CASA, FORA, EM_CASA_E_FORA]
+
+# Faixas de saldo de gols do time analisado: placares mais elásticos ficam nas pontas
 ROTULOS_SALDO = {-3: "−3 ou menos", -2: "−2", -1: "−1", 0: "0", 1: "+1", 2: "+2", 3: "+3 ou mais"}
 
 
@@ -27,56 +36,98 @@ def adicionar_temporada(df):
     return df.assign(temporada=datas.dt.year - (datas.dt.month <= 2).astype(int))
 
 
-def saldo_do_mandante(df):
-    """Gols do mandante menos gols do visitante, partida a partida."""
-    return df["mandante_Placar"] - df["visitante_Placar"]
+def ponto_de_vista(partidas, em_casa):
+    """Acrescenta local, gols_pro e gols_contra do time analisado.
+
+    `em_casa` diz, partida a partida, se o time analisado era o mandante.
+    """
+    return partidas.assign(
+        local=np.where(em_casa, "casa", "fora"),
+        gols_pro=np.where(em_casa, partidas["mandante_Placar"], partidas["visitante_Placar"]),
+        gols_contra=np.where(em_casa, partidas["visitante_Placar"], partidas["mandante_Placar"]),
+    )
+
+
+def partidas_analisadas(partidas, clube=None, local=EM_CASA_E_FORA):
+    """Partidas do recorte vistas pelo time analisado, uma linha por partida.
+
+    Sem clube: todas as partidas, vistas pelo mandante (fator casa geral).
+    Com clube: só as partidas dele no local escolhido, vistas pelo clube.
+    Um clube nunca é mandante e visitante da mesma partida, então nada é contado duas vezes.
+    """
+    if clube is None:
+        return ponto_de_vista(partidas, np.ones(len(partidas), dtype=bool))
+    em_casa = partidas["mandante"] == clube
+    fora = partidas["visitante"] == clube
+    filtro = {EM_CASA: em_casa, FORA: fora, EM_CASA_E_FORA: em_casa | fora}[local]
+    return ponto_de_vista(partidas[filtro], em_casa[filtro])
+
+
+def referencia_dos_clubes(partidas, local):
+    """Base de comparação para um clube: todas as partidas vistas por um clube qualquer no mesmo local.
+
+    Em casa usa o ponto de vista do mandante; fora, o do visitante; em casa e fora junta
+    os dois (cada partida entra uma vez para cada time), como a média de um clube da liga.
+    """
+    casa = ponto_de_vista(partidas, np.ones(len(partidas), dtype=bool))
+    fora = ponto_de_vista(partidas, np.zeros(len(partidas), dtype=bool))
+    return {EM_CASA: casa, FORA: fora, EM_CASA_E_FORA: pd.concat([casa, fora], ignore_index=True)}[local]
+
+
+def rotulos_dos_resultados(clube=None):
+    """Nomes das três categorias de RESULTADOS para mostrar na tela."""
+    if clube is None:
+        return ["Mandante venceu", "Empate", "Visitante venceu"]
+    return [f"{clube} venceu", "Empate", f"{clube} perdeu"]
+
+
+def saldo_do_time(analisadas):
+    """Gols a favor menos gols contra do time analisado, partida a partida."""
+    return analisadas["gols_pro"] - analisadas["gols_contra"]
 
 
 def resultado_pelo_saldo(saldo):
-    """Categoria de RESULTADOS a partir do saldo de gols do mandante.
-
-    Saldo positivo é vitória do mandante, zero é empate e negativo é derrota do mandante.
-    """
+    """Categoria de RESULTADOS a partir do saldo do time analisado (positivo, zero ou negativo)."""
     resultado = np.select([saldo > 0, saldo == 0], RESULTADOS[:2], default=RESULTADOS[2])
     return pd.Series(resultado, index=saldo.index)
 
 
-def classificar_resultados(df):
-    """Resultado de cada partida (uma das categorias de RESULTADOS), a partir do placar."""
-    return resultado_pelo_saldo(saldo_do_mandante(df))
+def classificar_resultados(analisadas):
+    """Resultado de cada partida (uma das categorias de RESULTADOS) para o time analisado."""
+    return resultado_pelo_saldo(saldo_do_time(analisadas))
 
 
-def calcular_kpis(recorte):
-    """Indicadores do Dashboard 2 para um recorte de partidas.
+def calcular_kpis(analisadas):
+    """Indicadores do Dashboard 2 para as partidas analisadas.
 
     Indicadores que não podem ser calculados (recorte vazio ou sem arrecadação
     registrada) voltam como None, para o app mostrar "–" em vez de um número errado.
     """
-    partidas = len(recorte)
-    arrecadacao = recorte["arrecadacao"].dropna()
-    vitorias = (recorte["resultado_mandante"] == "Vitoria_Mandante").mean()
-    gols = (recorte["mandante_Placar"] + recorte["visitante_Placar"]).mean()
+    partidas = len(analisadas)
+    arrecadacao = analisadas["arrecadacao"].dropna()
+    vitorias = (classificar_resultados(analisadas) == "Vitória").mean()
+    gols = (analisadas["gols_pro"] + analisadas["gols_contra"]).mean()
     return {
         "partidas": partidas,
-        "pct_vitorias_mandante": float(vitorias) if partidas else None,
+        "pct_vitorias": float(vitorias) if partidas else None,
         "gols_por_partida": float(gols) if partidas else None,
         "partidas_com_arrecadacao": len(arrecadacao),
         "arrecadacao_mediana": float(arrecadacao.median()) if len(arrecadacao) else None,
     }
 
 
-def percentuais_resultados(recorte):
-    """Fração das partidas do recorte em cada resultado, na ordem de RESULTADOS."""
-    return classificar_resultados(recorte).value_counts(normalize=True).reindex(RESULTADOS, fill_value=0.0)
+def percentuais_resultados(analisadas):
+    """Fração das partidas em cada resultado, na ordem de RESULTADOS."""
+    return classificar_resultados(analisadas).value_counts(normalize=True).reindex(RESULTADOS, fill_value=0.0)
 
 
-def resultados_por_temporada(recorte):
+def resultados_por_temporada(analisadas):
     """Quantidade e percentual de cada resultado por temporada (formato longo, para o Altair).
 
     `total` é o número de partidas da temporada no recorte; as três categorias somam esse valor.
     """
     contagem = (
-        recorte.assign(resultado=classificar_resultados(recorte))
+        analisadas.assign(resultado=classificar_resultados(analisadas))
         .groupby(["temporada", "resultado"])
         .size()
         .rename("partidas")
@@ -88,15 +139,15 @@ def resultados_por_temporada(recorte):
     return contagem
 
 
-def resultados_por_saldo(recorte, referencia):
-    """Partidas por saldo de gols do mandante, no recorte e numa referência (o dataset completo).
+def resultados_por_saldo(analisadas, referencia):
+    """Partidas por saldo de gols do time analisado, no recorte e numa referência.
 
     Todas as faixas de ROTULOS_SALDO aparecem, mesmo sem partidas, cada uma com o resultado
     que representa. O saldo é limitado a ±3: uma vitória por 5 x 0 entra em "+3 ou mais".
     """
     saldos = pd.Series(list(ROTULOS_SALDO))
-    no_recorte = saldo_do_mandante(recorte).clip(-3, 3).value_counts()
-    na_referencia = saldo_do_mandante(referencia).clip(-3, 3).value_counts(normalize=True)
+    no_recorte = saldo_do_time(analisadas).clip(-3, 3).value_counts()
+    na_referencia = saldo_do_time(referencia).clip(-3, 3).value_counts(normalize=True)
     tabela = pd.DataFrame(
         {
             "saldo": saldos,
@@ -106,19 +157,19 @@ def resultados_por_saldo(recorte, referencia):
             "percentual_referencia": saldos.map(na_referencia).fillna(0.0),
         }
     )
-    tabela["percentual"] = tabela["partidas"] / len(recorte) if len(recorte) else 0.0
+    tabela["percentual"] = tabela["partidas"] / len(analisadas) if len(analisadas) else 0.0
     return tabela
 
 
-def gols_por_temporada(recorte, primeira, ultima):
-    """Média de gols por partida em cada temporada do intervalo.
+def gols_por_temporada(analisadas, primeira, ultima):
+    """Média de gols por partida (dos dois times) em cada temporada do intervalo.
 
     Temporadas sem partidas no recorte (por exemplo, quando o clube escolhido não
     estava na Série A) ficam com valor vazio, e o gráfico de linha mostra a lacuna.
     """
-    gols = recorte["mandante_Placar"] + recorte["visitante_Placar"]
+    gols = analisadas["gols_pro"] + analisadas["gols_contra"]
     return (
-        gols.groupby(recorte["temporada"])
+        gols.groupby(analisadas["temporada"])
         .agg(gols_por_partida="mean", partidas="size")
         .reindex(range(primeira, ultima + 1))
         .rename_axis("temporada")
@@ -126,15 +177,15 @@ def gols_por_temporada(recorte, primeira, ultima):
     )
 
 
-def tabela_por_temporada(recorte):
+def tabela_por_temporada(analisadas):
     """Tabela com os mesmos números dos gráficos, uma linha por temporada."""
     percentuais = (
-        resultados_por_temporada(recorte)
+        resultados_por_temporada(analisadas)
         .pivot(index="temporada", columns="resultado", values="percentual")
         .reindex(columns=RESULTADOS)
         .fillna(0)
         * 100
     )
-    gols = recorte["mandante_Placar"] + recorte["visitante_Placar"]
-    resumo = gols.groupby(recorte["temporada"]).agg(partidas="size", gols_por_partida="mean")
+    gols = analisadas["gols_pro"] + analisadas["gols_contra"]
+    resumo = gols.groupby(analisadas["temporada"]).agg(partidas="size", gols_por_partida="mean")
     return resumo.join(percentuais).reset_index()

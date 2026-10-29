@@ -4,13 +4,23 @@ O Dashboard 2 responde a uma pergunta que já aparecia na minha EDA: **quanto o 
 
 O público-alvo que considerei são **torcedores e jornalistas esportivos** que acompanham o campeonato e querem números simples para comparar clubes e temporadas. A arrecadação também interessa a quem acompanha a parte financeira dos clubes.
 
-Os indicadores são calculados sobre um **recorte** definido por três controles, todos na barra lateral:
+Os indicadores são calculados sobre um **recorte** definido por controles que ficam todos na barra lateral:
 
 - **Temporadas** (intervalo de 2003 a 2025, que pode ser uma temporada só), no grupo "Dashboard 2";
-- **Clube mandante** (todos ou um clube específico; com um clube escolhido, entram só os jogos em que ele foi mandante), também no grupo "Dashboard 2";
+- **Clube** (todos ou um clube específico), também no grupo "Dashboard 2";
+- **Jogos do clube** (em casa, fora ou em casa e fora), que só vale quando um clube é escolhido;
 - os **intervalos** de rodada, gols e arrecadação, que valem para os dois dashboards.
 
-Cada indicador mostra também a diferença em relação a **todas as 9.165 partidas do dataset**, para o leitor saber se o recorte está acima ou abaixo do normal. Os cálculos ficam em `src/metricas.py` e têm testes em `tests/test_metricas.py`.
+### Duas análises diferentes
+
+O dashboard faz duas análises, e elas nunca se misturam no mesmo cálculo:
+
+- **Fator casa geral** ("Todos os clubes"). A unidade é a partida, e o resultado é sempre visto pelo mandante: vitória do mandante, empate ou vitória do visitante (que é a derrota do mandante). Os indicadores são comparados com **todas as 9.165 partidas do dataset**.
+- **Desempenho de um clube** (um clube escolhido). A unidade é a partida desse clube, e o resultado é visto pelo próprio clube, esteja ele jogando em casa ou fora. Se o Sport vence fora de casa, a partida conta como vitória do Sport; se perde em casa, conta como derrota do Sport. A comparação é com a **média dos clubes nas mesmas condições**: em casa, 49,6% de vitórias; fora, 23,9%; em casa e fora, 36,8%.
+
+Essa separação veio de uma pergunta da professora: antes, ao escolher um clube, o dashboard usava só os jogos em que ele era mandante e não deixava isso claro. O Sport, por exemplo, tem 456 partidas no dataset, e só as 228 em casa entravam. Com os jogos fora incluídos, a taxa de vitórias dele é de 29,2% (43,0% em casa e 15,4% fora).
+
+Os cálculos ficam em `src/metricas.py` e têm testes em `tests/test_metricas.py`, incluindo os casos de vitória, empate e derrota de um clube em casa e fora.
 
 Uma observação sobre as temporadas: o dataset não tem uma coluna de temporada, então eu a derivei da data. A temporada 2020 foi adiada pela pandemia e terminou em fevereiro de 2021. Por isso, os jogos de janeiro e fevereiro contam para o ano anterior, e assim cada temporada a partir de 2006 fica com 380 partidas.
 
@@ -24,10 +34,10 @@ Uma observação sobre as temporadas: o dataset não tem uma coluna de temporada
 - **O que comunica ao público-alvo:** "estes números vêm de tantas partidas".
 - **Limitações:** não é um indicador de desempenho, só de contexto.
 
-## Métrica 2: Vitórias do mandante
-- **Variável:** `resultado_mandante` (variável de classe criada na EDA: `Vitoria_Mandante` ou `Nao_Venceu`).
-- **Como é calculada:** partidas com `Vitoria_Mandante` ÷ total de partidas do recorte, em %. A comparação com o dataset completo é em pontos percentuais (p.p.).
-- **O que mede:** com que frequência o time da casa vence.
+## Métrica 2: Vitórias do mandante (ou do clube escolhido)
+- **Variável:** no fator casa geral, `resultado_mandante` (variável de classe criada na EDA: `Vitoria_Mandante` ou `Nao_Venceu`). Com um clube escolhido, o resultado do ponto de vista do clube, calculado pelo placar (gols do clube contra gols do adversário).
+- **Como é calculada:** partidas vencidas ÷ total de partidas do recorte, em %. No fator casa geral, a comparação é com todas as partidas; com um clube, é com a média dos clubes nas mesmas condições. As duas comparações são em pontos percentuais (p.p.).
+- **O que mede:** com que frequência o time da casa vence (fator casa geral) ou com que frequência o clube escolhido vence, nos jogos selecionados.
 - **Por que foi escolhida:** é a forma mais direta de medir o fator casa, e usa exatamente a variável que eu estudei na EDA. No dataset inteiro, o mandante vence 49,6% das partidas e perde 23,9% (vitórias do visitante); o resto, 26,4%, são empates.
 - **Público-alvo:** torcedores e jornalistas esportivos.
 - **Qual decisão pode ser apoiada por essa métrica?** Um jornalista pode checar se a ideia de que "jogar em casa é meio caminho andado" vale para o recorte que está comentando. Um torcedor pode ver se o seu clube aproveita o mando melhor ou pior que a média do campeonato (é o que a diferença em p.p. mostra).
@@ -52,16 +62,20 @@ Uma observação sobre as temporadas: o dataset não tem uma coluna de temporada
 - **Público-alvo:** jornalistas e pessoas que acompanham as finanças dos clubes.
 - **Qual decisão pode ser apoiada por essa métrica?** Comparar a renda típica por jogo de um clube jogando em casa com a do campeonato, por exemplo para contextualizar uma notícia sobre bilheteria.
 - **O que comunica ao público-alvo:** "um jogo típico deste recorte arrecadou R$ X".
-- **Limitações:** a arrecadação só existe na **temporada 2025** (380 das 9.165 partidas). Fora dela o indicador aparece como "–" e o app explica o motivo. Os valores também não estão corrigidos pela inflação, mas como são todos do mesmo ano isso não atrapalha a comparação.
+- **Limitações:** a arrecadação só existe na **temporada 2025** (380 das 9.165 partidas). Fora dela o indicador aparece como "–" e o app explica o motivo. Os valores também não estão corrigidos pela inflação, mas como são todos do mesmo ano isso não atrapalha a comparação. É a renda da partida, registrada para o mandante: com um clube escolhido em "em casa e fora", entram também jogos em que a renda foi do adversário, então para olhar só a renda do clube é preciso escolher "Em casa".
 
 ## Gráficos do Dashboard 2
 
-- **Resultado das partidas por temporada** (barras empilhadas em 100%): mostra, para cada temporada, a parte de vitórias do mandante, empates e derrotas do mandante (vitórias do visitante), calculadas pelo placar de cada partida. As três partes somam o total de jogos da temporada no recorte (isso é conferido nos testes), e o texto acima do gráfico traz a divisão do recorte inteiro. Complementa a Métrica 2: o indicador mostra só as vitórias, e o gráfico mostra também empates e derrotas e se isso mudou de uma temporada para outra (no dataset completo, as vitórias do mandante variam de 43,9% em 2017 a 54,7% em 2008). Clicar numa cor da legenda destaca esse resultado, e um novo clique volta a mostrar todos.
+- **Resultados por temporada** (barras empilhadas em 100%): para cada temporada, mostra a parte das partidas em cada resultado, calculado pelo placar. O eixo é o percentual das partidas daquela temporada no recorte, e as três partes somam o total de jogos dela (isso é conferido nos testes). O título e a legenda mudam com a análise:
+  - "Resultados das partidas por temporada · mandante, empate e visitante", com "Mandante venceu", "Empate" e "Visitante venceu", no fator casa geral;
+  - "Sport: resultados por temporada · jogos em casa e fora", com "Sport venceu", "Empate" e "Sport perdeu", com um clube escolhido.
+  
+  O texto acima do gráfico diz qual é a unidade de análise e traz a divisão do recorte inteiro. Complementa a Métrica 2: o indicador mostra só as vitórias, e o gráfico mostra também empates e derrotas e se isso mudou de uma temporada para outra (no dataset completo, as vitórias do mandante variam de 43,9% em 2017 a 54,7% em 2008). Clicar numa cor da legenda destaca esse resultado, e um novo clique volta a mostrar todos.
 - **Gols por partida por temporada** (linha): complementa a Métrica 3 mostrando a evolução ano a ano, com uma linha tracejada na média do recorte. Quando o clube escolhido não estava na Série A em alguma temporada, a linha fica interrompida em vez de ligar anos distantes.
-- **Por quanto o mandante vence ou perde** (barras por saldo de gols): mostra a parte das partidas do recorte que terminou com cada saldo de gols do mandante, de "−3 ou menos" a "+3 ou mais", com as barras coloridas pelo resultado. Os traços dourados mostram o mesmo percentual em todas as partidas, para comparar o recorte com o histórico.
+- **Por quanto o mandante (ou o clube) vence ou perde** (barras por saldo de gols): mostra a parte das partidas do recorte que terminou com cada saldo de gols, de "−3 ou menos" a "+3 ou mais", com as barras coloridas pelo resultado. O saldo é do mandante no fator casa geral e do clube escolhido (em casa ou fora) quando há um clube. Os traços dourados mostram a mesma referência dos indicadores: todas as partidas, ou a média dos clubes nas mesmas condições.
   - **Por que este gráfico:** ele junta o desempenho do mandante em campo (o saldo de gols) com o resultado final, o que os outros dois não mostram. Dá para ver, por exemplo, se um clube vence em casa por margens maiores que a média ou se perde mais jogos por um gol. No dataset completo, 26,0% das partidas terminam com vitória do mandante por um gol e 9,6% com vitória por três ou mais.
   - **Por que não outro gráfico por temporada:** um segundo gráfico de vitórias, empates e derrotas por temporada repetiria o primeiro.
   - **Limitação:** o gráfico soma as temporadas do recorte. Para comparar períodos, é preciso mudar o filtro de temporadas.
 - **Tabela "Ver os números por temporada"**: traz os mesmos números dos gráficos por temporada, para quem prefere ler os valores ou não consegue distinguir as cores.
 
-As cores seguem a identidade do app: verde-limão para a vitória do mandante (a mesma cor do Dashboard 1), cinza para o empate e azul para a derrota do mandante. O azul foi escolhido depois de testar a paleta para daltonismo: um vermelho, que seria a escolha óbvia, ficava quase igual ao cinza para quem tem protanopia. O dourado marca referências (a média no gráfico de gols e o histórico no gráfico de saldo).
+As cores seguem a identidade do app: verde-limão para a vitória do time analisado (o mandante ou o clube escolhido; a mesma cor do Dashboard 1), cinza para o empate e azul para a derrota dele. O azul foi escolhido depois de testar a paleta para daltonismo: um vermelho, que seria a escolha óbvia, ficava quase igual ao cinza para quem tem protanopia. O dourado marca referências (a média no gráfico de gols e o histórico no gráfico de saldo).

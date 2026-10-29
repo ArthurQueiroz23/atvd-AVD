@@ -22,7 +22,7 @@ O app tem duas abas:
 | Aba | O que mostra | Controles |
 | --- | --- | --- |
 | **Dashboard 1 · Correlação e distribuição** | Mapa de calor da correlação de Spearman entre rodada, gols do mandante, gols do visitante e arrecadação, e um histograma de cada variável, com a opção de colorir pelo resultado do mandante (`resultado_mandante`, a variável de classe da EDA). | Na barra lateral: escolha das variáveis, intervalo de cada uma e a opção de separar por resultado. |
-| **Dashboard 2 · Indicadores do fator casa** | Quatro indicadores com `st.metric`: partidas analisadas, vitórias do mandante, gols por partida e arrecadação mediana, cada um comparado com o dataset completo. Também mostra o resultado das partidas e os gols por partida em cada temporada, além de uma tabela com esses números. | Na própria aba: intervalo de temporadas e clube mandante. Os intervalos da barra lateral também valem aqui. |
+| **Dashboard 2 · Indicadores do fator casa** | Quatro indicadores com `st.metric`: partidas analisadas, vitórias do mandante, gols por partida e arrecadação mediana, cada um comparado com o dataset completo. Três gráficos: resultado das partidas por temporada (vitórias, empates e derrotas do mandante), gols por partida por temporada e o saldo de gols do mandante (por quanto ele vence ou perde). Também traz uma tabela por temporada. | Na barra lateral, no grupo "Dashboard 2": intervalo de temporadas e clube mandante. Os intervalos da barra lateral também valem aqui. |
 
 A justificativa de cada métrica do Dashboard 2 está em [entregas/justificativa-metricas.md](entregas/justificativa-metricas.md).
 

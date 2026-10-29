@@ -5,9 +5,12 @@ import streamlit as st
 from src.data_loader import load_data
 from src.metricas import (
     RESULTADOS,
+    ROTULOS_SALDO,
     adicionar_temporada,
     calcular_kpis,
     gols_por_temporada,
+    percentuais_resultados,
+    resultados_por_saldo,
     resultados_por_temporada,
     tabela_por_temporada,
 )
@@ -242,12 +245,13 @@ TEMPORADAS_ARRECADACAO = ", ".join(
 )
 
 # =============================================================================
-# Sidebar: filtros (variáveis + intervalo)
+# Sidebar: filtros de cada dashboard + intervalos que valem para os dois
 # =============================================================================
 
 with st.sidebar:
     st.header("Filtros")
 
+    st.subheader("Dashboard 1")
     variaveis = st.multiselect(
         "Variáveis quantitativas",
         options=VARS_QUANT,
@@ -264,8 +268,27 @@ with st.sidebar:
 
     st.divider()
 
+    st.subheader("Dashboard 2")
+    primeira_temporada, ultima_temporada = int(df["temporada"].min()), int(df["temporada"].max())
+    primeira, ultima = st.slider(
+        "Temporadas",
+        min_value=primeira_temporada,
+        max_value=ultima_temporada,
+        value=(primeira_temporada, ultima_temporada),
+        key="kpi_temporadas",
+        help="Intervalo de temporadas usado nos indicadores e gráficos do Dashboard 2.",
+    )
+    clube = st.selectbox(
+        "Clube mandante",
+        [TODOS_CLUBES] + sorted(df["mandante"].unique()),
+        key="kpi_clube",
+        help="Escolha um clube para ver só as partidas em que ele jogou em casa.",
+    )
+
     if variaveis:
-        st.caption("Os intervalos abaixo valem para os dois dashboards.")
+        st.divider()
+        st.subheader("Intervalos")
+        st.caption("Valem para os dois dashboards.")
 
     # Um slider de intervalo para cada variável selecionada
     intervalos = {}
@@ -510,33 +533,21 @@ with aba_dashboard1:
                         colunas[1].markdown(LEGENDA_CLASSE)
 
 # =============================================================================
-# Dashboard 2: KPIs do fator casa (st.metric) + gráficos por temporada
+# Dashboard 2: KPIs do fator casa (st.metric) + gráficos de resultados e gols
+# (os filtros de temporadas e clube ficam no grupo "Dashboard 2" da barra lateral)
 # =============================================================================
 
 with aba_dashboard2:
     st.header("Indicadores do fator casa")
     st.caption(
         "Quanto o mando de campo pesa no resultado? Os indicadores comparam o recorte escolhido "
-        "com todas as partidas do dataset. Os intervalos da barra lateral também valem aqui."
+        "com todas as partidas do dataset."
     )
-
-    primeira_temporada, ultima_temporada = int(df["temporada"].min()), int(df["temporada"].max())
-    col_periodo, col_clube = st.columns([2, 1], gap="large")
-    with col_periodo:
-        primeira, ultima = st.slider(
-            "Temporadas",
-            min_value=primeira_temporada,
-            max_value=ultima_temporada,
-            value=(primeira_temporada, ultima_temporada),
-            key="kpi_temporadas",
-        )
-    with col_clube:
-        clube = st.selectbox(
-            "Clube mandante",
-            [TODOS_CLUBES] + sorted(df["mandante"].unique()),
-            key="kpi_clube",
-            help="Escolha um clube para ver só as partidas em que ele jogou em casa.",
-        )
+    periodo = f"temporada {primeira}" if primeira == ultima else f"temporadas {primeira}–{ultima}"
+    st.caption(
+        f"Recorte: **{periodo} · {clube}**. Para mudar, use o grupo Dashboard 2 da barra lateral; "
+        "os intervalos de lá também valem aqui."
+    )
 
     recorte = df_filtrado[df_filtrado["temporada"].between(primeira, ultima)]
     if clube != TODOS_CLUBES:
@@ -617,49 +628,57 @@ with aba_dashboard2:
             axis=alt.Axis(labelAngle=-45),
         )
 
-        col_resultados, col_gols_temporada = st.columns([1.3, 1], gap="large")
+        with st.container(border=True):
+            st.subheader("Resultado das partidas por temporada")
+            vitorias, empates, derrotas = percentuais_resultados(recorte)
+            st.caption(
+                f"No recorte: {numero_br(vitorias * 100, 1)}% de vitórias do mandante, "
+                f"{numero_br(empates * 100, 1)}% de empates e {numero_br(derrotas * 100, 1)}% de derrotas "
+                "do mandante (vitórias do visitante). Clique numa cor da legenda para destacar esse "
+                "resultado; clique nela de novo para voltar a ver todos."
+            )
 
-        with col_resultados:
-            with st.container(border=True):
-                st.subheader("Resultado das partidas por temporada")
-                st.caption("Clique em um item da legenda para destacar um resultado.")
+            # Cada clique na legenda liga ou desliga o destaque (por padrão do Vega-Lite,
+            # só o Shift faria isso e o destaque ficaria preso até um duplo clique)
+            destaque = alt.selection_point(fields=["resultado"], bind="legend", toggle="true")
+            grafico_resultados = (
+                alt.Chart(resultados_por_temporada(recorte))
+                .mark_bar(stroke="#0b1a12", strokeWidth=2)
+                .encode(
+                    x=eixo_temporada,
+                    y=alt.Y(
+                        "partidas:Q",
+                        stack="normalize",
+                        title="Partidas da temporada",
+                        axis=alt.Axis(format="%"),
+                    ),
+                    color=alt.Color(
+                        "resultado:N",
+                        title=None,
+                        scale=CORES_RESULTADO,
+                        legend=alt.Legend(orient="top"),
+                    ),
+                    order=alt.Order("ordem:Q"),
+                    opacity=alt.condition(destaque, alt.value(1), alt.value(0.3)),
+                    tooltip=[
+                        alt.Tooltip("temporada:O", title="Temporada"),
+                        alt.Tooltip("resultado:N", title="Resultado"),
+                        alt.Tooltip("partidas:Q", title="Partidas"),
+                        alt.Tooltip("total:Q", title="Partidas na temporada"),
+                        alt.Tooltip("percentual:Q", title="Percentual", format=".1%"),
+                    ],
+                )
+                .add_params(destaque)
+                .properties(height=300)
+            )
+            st.altair_chart(
+                estilo(grafico_resultados),
+                width="stretch",
+                theme=None,
+                alt="Barras empilhadas com o percentual de vitórias do mandante, empates e derrotas do mandante em cada temporada",
+            )
 
-                destaque = alt.selection_point(fields=["resultado"], bind="legend")
-                grafico_resultados = (
-                    alt.Chart(resultados_por_temporada(recorte))
-                    .mark_bar(stroke="#0b1a12", strokeWidth=2)
-                    .encode(
-                        x=eixo_temporada,
-                        y=alt.Y(
-                            "partidas:Q",
-                            stack="normalize",
-                            title="Partidas da temporada",
-                            axis=alt.Axis(format="%"),
-                        ),
-                        color=alt.Color(
-                            "resultado:N",
-                            title=None,
-                            scale=CORES_RESULTADO,
-                            legend=alt.Legend(orient="top"),
-                        ),
-                        order=alt.Order("ordem:Q"),
-                        opacity=alt.condition(destaque, alt.value(1), alt.value(0.25)),
-                        tooltip=[
-                            alt.Tooltip("temporada:O", title="Temporada"),
-                            alt.Tooltip("resultado:N", title="Resultado"),
-                            alt.Tooltip("partidas:Q", title="Partidas"),
-                            alt.Tooltip("percentual:Q", title="Percentual", format=".1%"),
-                        ],
-                    )
-                    .add_params(destaque)
-                    .properties(height=320)
-                )
-                st.altair_chart(
-                    estilo(grafico_resultados),
-                    width="stretch",
-                    theme=None,
-                    alt="Barras empilhadas com o percentual de vitórias do mandante, empates e vitórias do visitante em cada temporada",
-                )
+        col_gols_temporada, col_saldo = st.columns(2, gap="large")
 
         with col_gols_temporada:
             with st.container(border=True):
@@ -697,6 +716,51 @@ with aba_dashboard2:
                     width="stretch",
                     theme=None,
                     alt="Linha com a média de gols por partida em cada temporada, com a média do recorte como referência",
+                )
+
+        with col_saldo:
+            with st.container(border=True):
+                st.subheader("Por quanto o mandante vence ou perde")
+                st.caption(
+                    "Saldo de gols do mandante em cada partida do recorte (gols marcados menos sofridos). "
+                    "Os traços dourados mostram o mesmo percentual em todas as partidas do dataset."
+                )
+
+                base_saldo = alt.Chart(resultados_por_saldo(recorte, df)).encode(
+                    x=alt.X(
+                        "faixa:N",
+                        title="Saldo de gols do mandante na partida",
+                        sort=list(ROTULOS_SALDO.values()),
+                        axis=alt.Axis(labelAngle=0),
+                    ),
+                    tooltip=[
+                        alt.Tooltip("faixa:N", title="Saldo do mandante"),
+                        alt.Tooltip("resultado:N", title="Resultado"),
+                        alt.Tooltip("partidas:Q", title="Partidas no recorte"),
+                        alt.Tooltip("percentual:Q", title="% do recorte", format=".1%"),
+                        alt.Tooltip("percentual_referencia:Q", title="% em todas as partidas", format=".1%"),
+                    ],
+                )
+                barras_saldo = base_saldo.mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+                    y=alt.Y("percentual:Q", title="Partidas do recorte", axis=alt.Axis(format="%")),
+                    color=alt.Color(
+                        "resultado:N",
+                        title=None,
+                        scale=CORES_RESULTADO,
+                        legend=alt.Legend(orient="top"),
+                    ),
+                )
+                # Traço dourado com contorno escuro, para aparecer tanto sobre as barras claras quanto sobre o fundo
+                y_referencia = alt.Y("percentual_referencia:Q", title="Partidas do recorte")
+                historico = base_saldo.mark_tick(color="#0b1a12", thickness=6).encode(
+                    y=y_referencia
+                ) + base_saldo.mark_tick(color=DOURADO, thickness=2).encode(y=y_referencia)
+                st.altair_chart(
+                    estilo((barras_saldo + historico).properties(height=320)),
+                    width="stretch",
+                    theme=None,
+                    alt="Barras com o percentual de partidas por saldo de gols do mandante, coloridas por vitória, "
+                    "empate ou derrota do mandante, com o percentual de todas as partidas como referência",
                 )
 
         with st.expander("Ver os números por temporada"):

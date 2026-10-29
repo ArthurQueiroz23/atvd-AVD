@@ -7,8 +7,12 @@ para poderem ser testadas separadamente (ver tests/test_metricas.py).
 import numpy as np
 import pandas as pd
 
-# Resultado da partida do ponto de vista do mandante, na ordem usada nos gráficos
-RESULTADOS = ["Vitória do mandante", "Empate", "Vitória do visitante"]
+# Resultado da partida do ponto de vista do mandante, na ordem usada nos gráficos.
+# "Derrota do mandante" é o mesmo que vitória do visitante.
+RESULTADOS = ["Vitória do mandante", "Empate", "Derrota do mandante"]
+
+# Faixas de saldo de gols do mandante no gráfico de margens: placares mais elásticos ficam nas pontas
+ROTULOS_SALDO = {-3: "−3 ou menos", -2: "−2", -1: "−1", 0: "0", 1: "+1", 2: "+2", 3: "+3 ou mais"}
 
 
 def adicionar_temporada(df):
@@ -23,11 +27,23 @@ def adicionar_temporada(df):
     return df.assign(temporada=datas.dt.year - (datas.dt.month <= 2).astype(int))
 
 
+def saldo_do_mandante(df):
+    """Gols do mandante menos gols do visitante, partida a partida."""
+    return df["mandante_Placar"] - df["visitante_Placar"]
+
+
+def resultado_pelo_saldo(saldo):
+    """Categoria de RESULTADOS a partir do saldo de gols do mandante.
+
+    Saldo positivo é vitória do mandante, zero é empate e negativo é derrota do mandante.
+    """
+    resultado = np.select([saldo > 0, saldo == 0], RESULTADOS[:2], default=RESULTADOS[2])
+    return pd.Series(resultado, index=saldo.index)
+
+
 def classificar_resultados(df):
     """Resultado de cada partida (uma das categorias de RESULTADOS), a partir do placar."""
-    diferenca = df["mandante_Placar"] - df["visitante_Placar"]
-    resultado = np.select([diferenca > 0, diferenca == 0], RESULTADOS[:2], default=RESULTADOS[2])
-    return pd.Series(resultado, index=df.index)
+    return resultado_pelo_saldo(saldo_do_mandante(df))
 
 
 def calcular_kpis(recorte):
@@ -49,8 +65,16 @@ def calcular_kpis(recorte):
     }
 
 
+def percentuais_resultados(recorte):
+    """Fração das partidas do recorte em cada resultado, na ordem de RESULTADOS."""
+    return classificar_resultados(recorte).value_counts(normalize=True).reindex(RESULTADOS, fill_value=0.0)
+
+
 def resultados_por_temporada(recorte):
-    """Quantidade e percentual de cada resultado por temporada (formato longo, para o Altair)."""
+    """Quantidade e percentual de cada resultado por temporada (formato longo, para o Altair).
+
+    `total` é o número de partidas da temporada no recorte; as três categorias somam esse valor.
+    """
     contagem = (
         recorte.assign(resultado=classificar_resultados(recorte))
         .groupby(["temporada", "resultado"])
@@ -58,9 +82,32 @@ def resultados_por_temporada(recorte):
         .rename("partidas")
         .reset_index()
     )
-    contagem["percentual"] = contagem["partidas"] / contagem.groupby("temporada")["partidas"].transform("sum")
+    contagem["total"] = contagem.groupby("temporada")["partidas"].transform("sum")
+    contagem["percentual"] = contagem["partidas"] / contagem["total"]
     contagem["ordem"] = contagem["resultado"].map(RESULTADOS.index)
     return contagem
+
+
+def resultados_por_saldo(recorte, referencia):
+    """Partidas por saldo de gols do mandante, no recorte e numa referência (o dataset completo).
+
+    Todas as faixas de ROTULOS_SALDO aparecem, mesmo sem partidas, cada uma com o resultado
+    que representa. O saldo é limitado a ±3: uma vitória por 5 x 0 entra em "+3 ou mais".
+    """
+    saldos = pd.Series(list(ROTULOS_SALDO))
+    no_recorte = saldo_do_mandante(recorte).clip(-3, 3).value_counts()
+    na_referencia = saldo_do_mandante(referencia).clip(-3, 3).value_counts(normalize=True)
+    tabela = pd.DataFrame(
+        {
+            "saldo": saldos,
+            "faixa": saldos.map(ROTULOS_SALDO),
+            "resultado": resultado_pelo_saldo(saldos),
+            "partidas": saldos.map(no_recorte).fillna(0).astype(int),
+            "percentual_referencia": saldos.map(na_referencia).fillna(0.0),
+        }
+    )
+    tabela["percentual"] = tabela["partidas"] / len(recorte) if len(recorte) else 0.0
+    return tabela
 
 
 def gols_por_temporada(recorte, primeira, ultima):

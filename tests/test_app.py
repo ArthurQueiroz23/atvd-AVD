@@ -82,6 +82,40 @@ class TestDashboard1(unittest.TestCase):
 
 
 class TestDashboard2(unittest.TestCase):
+    def test_filtros_ficam_so_na_barra_lateral(self):
+        at = abrir_app()
+        self.assertIn("kpi_temporadas", [s.key for s in at.sidebar.slider])
+        self.assertIn("kpi_clube", [s.key for s in at.sidebar.selectbox])
+        self.assertNotIn("kpi_temporadas", [s.key for s in at.main.slider])
+        self.assertNotIn("kpi_clube", [s.key for s in at.main.selectbox])
+
+    def test_aba_tem_tres_graficos(self):
+        at = abrir_app()
+        self.assertEqual(len(at.tabs[1].get("vega_lite_chart")), 3)
+
+    def test_uma_temporada_so(self):
+        df = adicionar_temporada(pd.read_csv("data/clean/dataset.csv"))
+        at = abrir_app()
+        at.slider(key="kpi_temporadas").set_range(2017, 2017).run()
+        self.assertFalse(at.exception)
+        self.assertEqual(at.metric[0].value, str((df["temporada"] == 2017).sum()))
+        self.assertTrue(any("temporada 2017 ·" in c.value for c in at.caption))
+        self.assertEqual(len(at.tabs[1].get("vega_lite_chart")), 3)
+
+    def test_trocar_o_clube_varias_vezes(self):
+        df = adicionar_temporada(pd.read_csv("data/clean/dataset.csv"))
+        at = abrir_app()
+        at.slider(key="kpi_temporadas").set_range(2010, 2015).run()
+        for clube in ["Flamengo", "Vasco", "Gremio", "Todos os clubes"]:
+            at.selectbox(key="kpi_clube").select(clube).run()
+            self.assertFalse(at.exception, clube)
+            recorte = df[df["temporada"].between(2010, 2015)]
+            if clube != "Todos os clubes":
+                recorte = recorte[recorte["mandante"] == clube]
+            self.assertEqual(at.metric[0].value.replace(".", ""), str(len(recorte)), clube)
+            # A tabela por temporada soma as mesmas partidas do indicador
+            self.assertEqual(at.dataframe[0].value["partidas"].sum(), len(recorte), clube)
+
     def test_clube_e_temporada(self):
         df = adicionar_temporada(pd.read_csv("data/clean/dataset.csv"))
         esperado = df[(df["temporada"] == 2025) & (df["mandante"] == "Flamengo")]

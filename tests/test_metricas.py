@@ -10,10 +10,13 @@ import pandas as pd
 
 from src.metricas import (
     RESULTADOS,
+    ROTULOS_SALDO,
     adicionar_temporada,
     calcular_kpis,
     classificar_resultados,
     gols_por_temporada,
+    percentuais_resultados,
+    resultados_por_saldo,
     resultados_por_temporada,
     tabela_por_temporada,
 )
@@ -54,9 +57,10 @@ class TestTemporada(unittest.TestCase):
 class TestResultados(unittest.TestCase):
     def test_classificacao_pelo_placar(self):
         df = partidas_exemplo()
+        # Placares: 2 x 1, 0 x 0, 1 x 3 (o visitante venceu, ou seja, derrota do mandante) e 3 x 0
         self.assertEqual(
             classificar_resultados(df).tolist(),
-            ["Vitória do mandante", "Empate", "Vitória do visitante", "Vitória do mandante"],
+            ["Vitória do mandante", "Empate", "Derrota do mandante", "Vitória do mandante"],
         )
 
     def test_classificacao_bate_com_a_variavel_de_classe_da_eda(self):
@@ -71,6 +75,57 @@ class TestResultados(unittest.TestCase):
         for soma in somas:
             self.assertAlmostEqual(soma, 1.0)
         self.assertEqual(set(resultados["resultado"]), set(RESULTADOS))
+
+    def test_as_tres_categorias_somam_as_partidas_de_cada_temporada(self):
+        df = adicionar_temporada(pd.read_csv(CAMINHO_DATASET))
+        resultados = resultados_por_temporada(df)
+        partidas_por_temporada = df.groupby("temporada").size()
+        soma_das_categorias = resultados.groupby("temporada")["partidas"].sum()
+        self.assertTrue((soma_das_categorias == partidas_por_temporada).all())
+        self.assertTrue((resultados["total"] == resultados["temporada"].map(partidas_por_temporada)).all())
+        # Nenhuma partida é contada em duas categorias: no máximo uma linha por (temporada, resultado)
+        self.assertFalse(resultados.duplicated(["temporada", "resultado"]).any())
+
+    def test_percentuais_do_recorte_na_ordem_dos_resultados(self):
+        percentuais = percentuais_resultados(partidas_exemplo())
+        self.assertEqual(list(percentuais.index), RESULTADOS)
+        self.assertEqual(percentuais.tolist(), [0.5, 0.25, 0.25])
+
+    def test_resultado_sem_partidas_aparece_como_zero(self):
+        percentuais = percentuais_resultados(partidas_exemplo().iloc[[0, 3]])  # só vitórias
+        self.assertEqual(percentuais.tolist(), [1.0, 0.0, 0.0])
+
+
+class TestResultadosPorSaldo(unittest.TestCase):
+    def test_faixas_e_resultado_de_cada_saldo(self):
+        exemplo = partidas_exemplo()  # saldos do mandante: +1, 0, -2 e +3
+        saldos = resultados_por_saldo(exemplo, exemplo)
+        self.assertEqual(saldos["faixa"].tolist(), list(ROTULOS_SALDO.values()))
+        self.assertEqual(saldos["partidas"].tolist(), [0, 1, 0, 1, 1, 0, 1])
+        self.assertEqual(
+            saldos["resultado"].tolist(),
+            ["Derrota do mandante"] * 3 + ["Empate"] + ["Vitória do mandante"] * 3,
+        )
+        self.assertAlmostEqual(saldos["percentual"].sum(), 1.0)
+        self.assertAlmostEqual(saldos["percentual_referencia"].sum(), 1.0)
+
+    def test_placares_elasticos_ficam_nas_pontas(self):
+        goleadas = pd.DataFrame({"mandante_Placar": [5, 0, 3], "visitante_Placar": [0, 4, 0]})
+        saldos = resultados_por_saldo(goleadas, goleadas).set_index("saldo")
+        self.assertEqual(saldos.loc[3, "partidas"], 2)  # 5 x 0 e 3 x 0
+        self.assertEqual(saldos.loc[-3, "partidas"], 1)  # 0 x 4
+
+    def test_bate_com_os_kpis_e_com_o_grafico_por_temporada(self):
+        df = adicionar_temporada(pd.read_csv(CAMINHO_DATASET))
+        recorte = df[(df["mandante"] == "Flamengo") & df["temporada"].between(2010, 2025)]
+        saldos = resultados_por_saldo(recorte, df)
+        kpis = calcular_kpis(recorte)
+        self.assertEqual(saldos["partidas"].sum(), kpis["partidas"])
+        vitorias = saldos.loc[saldos["resultado"] == "Vitória do mandante", "percentual"].sum()
+        self.assertAlmostEqual(vitorias, kpis["pct_vitorias_mandante"])
+        por_temporada = resultados_por_temporada(recorte).groupby("resultado")["partidas"].sum()
+        por_saldo = saldos.groupby("resultado")["partidas"].sum()
+        self.assertTrue((por_temporada.reindex(RESULTADOS) == por_saldo.reindex(RESULTADOS)).all())
 
 
 class TestKpis(unittest.TestCase):
